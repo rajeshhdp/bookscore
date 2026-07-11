@@ -23,6 +23,11 @@
   --input: oklch(0.9 0.018 80);
   --ring: oklch(0.66 0.16 48);
   --radius: 0.75rem;
+  /* Chart entity colors — validated for contrast & CVD on the card surface */
+  --chart-books: #b45309;
+  --chart-donations: #4f46e5;
+  --chart-grid: oklch(0.93 0.012 80);
+  --chart-axis: oklch(0.55 0.02 290);
 }
 
 .dark {
@@ -45,6 +50,10 @@
   --border: oklch(0.32 0.03 290);
   --input: oklch(0.32 0.03 290);
   --ring: oklch(0.73 0.15 52);
+  --chart-books: #dd7027;
+  --chart-donations: #7d78de;
+  --chart-grid: oklch(0.3 0.025 290);
+  --chart-axis: oklch(0.65 0.02 290);
 }
 
 @theme inline {
@@ -96,6 +105,10 @@
     --border: oklch(0.32 0.03 290);
     --input: oklch(0.32 0.03 290);
     --ring: oklch(0.73 0.15 52);
+    --chart-books: #dd7027;
+    --chart-donations: #7d78de;
+    --chart-grid: oklch(0.3 0.025 290);
+    --chart-axis: oklch(0.65 0.02 290);
   }
 }
 

@@ -48,55 +48,27 @@ export async function submitEntry(
     };
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  // Link the entry to an active campaign covering its date, if any.
-  const { data: campaigns } = await supabase
-    .from("campaigns")
-    .select("id")
-    .eq("active", true)
-    .lte("start_date", data.date)
-    .gte("end_date", data.date)
-    .order("created_at", { ascending: false })
-    .limit(1);
-
-  const { data: entry, error: entryError } = await supabase
-    .from("distribution_entries")
-    .insert({
-      user_id: user?.id ?? null,
-      devotee_name: data.devoteeName,
-      region_id: data.regionId,
-      location_note: data.locationNote || null,
-      date: data.date,
-      donation_amount: data.donationAmount,
-      campaign_id: campaigns?.[0]?.id ?? null,
-    })
-    .select("id")
-    .single();
-
-  if (entryError || !entry) {
-    return { success: false, error: "Could not save your entry. Please try again." };
-  }
-
-  const { error: itemsError } = await supabase.from("entry_items").insert(
-    data.items.map((item) => ({
-      entry_id: entry.id,
+  // The submit_entry RPC inserts the entry and its items atomically (for
+  // guests and signed-in devotees alike), links the active campaign, and
+  // re-validates every input server-side. It returns the total book count.
+  const { data: totalBooks, error } = await supabase.rpc("submit_entry", {
+    p_devotee_name: data.devoteeName,
+    p_region_id: data.regionId,
+    p_location_note: data.locationNote || null,
+    p_date: data.date,
+    p_donation_amount: data.donationAmount,
+    p_items: data.items.map((item) => ({
       book_id: item.bookId,
       quantity: item.quantity,
-    }))
-  );
+    })),
+  });
 
-  if (itemsError) {
-    // Best-effort cleanup so a half-saved entry doesn't linger.
-    await supabase.from("distribution_entries").delete().eq("id", entry.id);
-    return { success: false, error: "Could not save your books. Please try again." };
+  if (error) {
+    return { success: false, error: "Could not save your entry. Please try again." };
   }
 
   revalidatePath("/");
   revalidatePath("/dashboard");
 
-  const totalBooks = data.items.reduce((sum, item) => sum + item.quantity, 0);
-  return { success: true, totalBooks };
+  return { success: true, totalBooks: Number(totalBooks) };
 }

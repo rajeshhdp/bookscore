@@ -425,6 +425,12 @@ as $$
       select count(distinct coalesce(e.user_id::text, lower(trim(e.devotee_name))))
       from distribution_entries e
       where e.date between c.start_date and c.end_date
+        and exists (
+          select 1 from entry_items i
+          join books b on b.id = i.book_id
+          where i.entry_id = e.id
+            and (c.type = 'general' or b.category::text = c.type::text)
+        )
     )::bigint as participants,
     coalesce((
       select sum(e.donation_amount)
@@ -523,7 +529,91 @@ as $$
     (select min(date) from distribution_entries where user_id = p_user_id) as first_entry_date;
 $$;
 
+-- ---------------------------------------------------------------------------
+-- Entry submission (security definer): inserts the entry and its items
+-- atomically for both guests and signed-in devotees. RLS SELECT policies keep
+-- raw entries private, which would break a client-side INSERT ... RETURNING
+-- for guests — this function avoids that while validating every input.
+-- ---------------------------------------------------------------------------
+create or replace function public.submit_entry(
+  p_devotee_name text,
+  p_region_id uuid,
+  p_location_note text,
+  p_date date,
+  p_donation_amount numeric,
+  p_items jsonb
+)
+returns bigint  -- total books recorded
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_entry_id uuid;
+  v_campaign_id uuid;
+  v_item record;
+  v_total bigint := 0;
+begin
+  if p_devotee_name is null or length(trim(p_devotee_name)) = 0 then
+    raise exception 'Name is required';
+  end if;
+  if p_date is null or p_date > current_date + 1 or p_date < current_date - 366 then
+    raise exception 'Invalid date';
+  end if;
+  if p_donation_amount is null or p_donation_amount < 0 or p_donation_amount > 1000000 then
+    raise exception 'Invalid donation amount';
+  end if;
+  if p_items is null or jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
+    raise exception 'At least one book is required';
+  end if;
+  if jsonb_array_length(p_items) > 100 then
+    raise exception 'Too many line items';
+  end if;
+
+  select c.id into v_campaign_id
+  from campaigns c
+  where c.active and p_date between c.start_date and c.end_date
+  order by c.created_at desc
+  limit 1;
+
+  insert into distribution_entries
+    (user_id, devotee_name, region_id, location_note, date, donation_amount, campaign_id)
+  values (
+    auth.uid(),
+    trim(p_devotee_name),
+    p_region_id,
+    nullif(trim(coalesce(p_location_note, '')), ''),
+    p_date,
+    p_donation_amount,
+    v_campaign_id
+  )
+  returning id into v_entry_id;
+
+  for v_item in
+    select (elem ->> 'book_id')::uuid as book_id,
+           (elem ->> 'quantity')::int as quantity
+    from jsonb_array_elements(p_items) as elem
+  loop
+    if v_item.book_id is null
+       or v_item.quantity is null
+       or v_item.quantity < 1
+       or v_item.quantity > 9999 then
+      raise exception 'Invalid book line item';
+    end if;
+    if not exists (select 1 from books b where b.id = v_item.book_id and b.active) then
+      raise exception 'Unknown book';
+    end if;
+    insert into entry_items (entry_id, book_id, quantity)
+    values (v_entry_id, v_item.book_id, v_item.quantity);
+    v_total := v_total + v_item.quantity;
+  end loop;
+
+  return v_total;
+end;
+$$;
+
 grant execute on function
+  public.submit_entry(text, uuid, text, date, numeric, jsonb),
   public.entry_display_name(uuid, text),
   public.monthly_summary(date, date),
   public.leaderboard(date, date, int),
