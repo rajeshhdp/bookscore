@@ -5,10 +5,9 @@
 -- Types
 -- ---------------------------------------------------------------------------
 create type book_category as enum (
-  'bhagavad_gita',
-  'srimad_bhagavatam',
-  'krishna_books',
-  'other'
+  'book',
+  'set',
+  'magazine'
 );
 
 create type campaign_type as enum (
@@ -45,6 +44,8 @@ create table books (
   id uuid primary key default gen_random_uuid(),
   category book_category not null,
   title text not null,
+  code text,          -- sankirtana score code, e.g. H1, H2, H3, H4, TS, M1
+  description text,   -- shown as a hint on the form, e.g. "50–150 pages"
   sort_order int not null default 0,
   active boolean not null default true,
   created_at timestamptz not null default now(),
@@ -403,8 +404,8 @@ as $$
   order by books desc;
 $$;
 
--- Campaign progress counts books distributed inside the campaign window that
--- match the campaign type (all books for 'general' campaigns).
+-- Campaign progress counts all books distributed inside the campaign window;
+-- the campaign type is a descriptive label (marathon goals are total books).
 create or replace function public.campaign_stats(p_campaign_id uuid)
 returns table (books bigint, participants bigint, donations numeric)
 language sql
@@ -416,21 +417,14 @@ as $$
     coalesce((
       select sum(i.quantity)
       from entry_items i
-      join books b on b.id = i.book_id
       join distribution_entries e on e.id = i.entry_id
       where e.date between c.start_date and c.end_date
-        and (c.type = 'general' or b.category::text = c.type::text)
     ), 0)::bigint as books,
     (
       select count(distinct coalesce(e.user_id::text, lower(trim(e.devotee_name))))
       from distribution_entries e
       where e.date between c.start_date and c.end_date
-        and exists (
-          select 1 from entry_items i
-          join books b on b.id = i.book_id
-          where i.entry_id = e.id
-            and (c.type = 'general' or b.category::text = c.type::text)
-        )
+        and exists (select 1 from entry_items i where i.entry_id = e.id)
     )::bigint as participants,
     coalesce((
       select sum(e.donation_amount)
@@ -450,12 +444,10 @@ set search_path = public
 as $$
   select r.name as region_name, sum(i.quantity)::bigint as books
   from entry_items i
-  join books b on b.id = i.book_id
   join distribution_entries e on e.id = i.entry_id
   join regions r on r.id = e.region_id
   join campaigns c on c.id = p_campaign_id
   where e.date between c.start_date and c.end_date
-    and (c.type = 'general' or b.category::text = c.type::text)
   group by r.name
   order by books desc;
 $$;

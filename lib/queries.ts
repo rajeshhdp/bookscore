@@ -190,7 +190,7 @@ export async function getBooks(includeInactive = false): Promise<Book[]> {
   if (!supabase) return [];
   let query = supabase
     .from("books")
-    .select("id, category, title, sort_order, active")
+    .select("id, category, title, code, description, sort_order, active")
     .order("category")
     .order("sort_order");
   if (!includeInactive) query = query.eq("active", true);

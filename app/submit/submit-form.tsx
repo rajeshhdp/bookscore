@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { CounterInput } from "@/components/counter-input";
 import { submitEntry } from "@/lib/actions/submit-entry";
-import { CATEGORY_LABELS, CATEGORY_ORDER } from "@/lib/constants";
+import { bookLabel, CATEGORY_LABELS, CATEGORY_ORDER } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { Book, Region } from "@/lib/types";
 
@@ -206,7 +206,8 @@ export function SubmitForm({
             {categoryBooks.map((book) => (
               <CounterInput
                 key={book.id}
-                label={book.title}
+                label={bookLabel(book)}
+                hint={book.description}
                 value={quantities[book.id] ?? 0}
                 onChange={(v) =>
                   setQuantities((prev) => ({ ...prev, [book.id]: v }))

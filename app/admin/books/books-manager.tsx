@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { saveBook } from "@/lib/actions/admin";
-import { CATEGORY_LABELS, CATEGORY_ORDER } from "@/lib/constants";
+import { bookLabel, CATEGORY_LABELS, CATEGORY_ORDER } from "@/lib/constants";
 import type { Book, BookCategory } from "@/lib/types";
 
 export function BooksManager({ books }: { books: Book[] }) {
@@ -56,10 +56,17 @@ export function BooksManager({ books }: { books: Book[] }) {
                   key={book.id}
                   className="flex items-center justify-between gap-3 py-2"
                 >
-                  <div className="flex items-center gap-2 text-sm">
-                    {book.title}
-                    {!book.active ? (
-                      <Badge variant="outline">Inactive</Badge>
+                  <div className="text-sm">
+                    <div className="flex items-center gap-2">
+                      {bookLabel(book)}
+                      {!book.active ? (
+                        <Badge variant="outline">Inactive</Badge>
+                      ) : null}
+                    </div>
+                    {book.description ? (
+                      <div className="text-xs text-muted-foreground">
+                        {book.description}
+                      </div>
                     ) : null}
                   </div>
                   <Button
@@ -91,9 +98,11 @@ function BookForm({
   onCancel: () => void;
 }) {
   const [category, setCategory] = useState<BookCategory>(
-    book?.category ?? "other"
+    book?.category ?? "book"
   );
   const [title, setTitle] = useState(book?.title ?? "");
+  const [code, setCode] = useState(book?.code ?? "");
+  const [description, setDescription] = useState(book?.description ?? "");
   const [sortOrder, setSortOrder] = useState(String(book?.sort_order ?? 0));
   const [active, setActive] = useState(book?.active ?? true);
   const [saving, setSaving] = useState(false);
@@ -105,6 +114,8 @@ function BookForm({
       {
         category,
         title,
+        code,
+        description,
         sortOrder: parseInt(sortOrder, 10) || 0,
         active,
       },
@@ -150,6 +161,24 @@ function BookForm({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="b-code">Code</Label>
+              <Input
+                id="b-code"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="e.g. H1, TS, M1"
+              />
+            </div>
+            <div className="space-y-1.5 col-span-2">
+              <Label htmlFor="b-desc">Hint shown on the form</Label>
+              <Input
+                id="b-desc"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="e.g. 50–150 pages"
               />
             </div>
             <div className="space-y-1.5">

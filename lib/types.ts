@@ -1,8 +1,4 @@
-export type BookCategory =
-  | "bhagavad_gita"
-  | "srimad_bhagavatam"
-  | "krishna_books"
-  | "other";
+export type BookCategory = "book" | "set" | "magazine";
 
 export type CampaignType = "bhagavad_gita" | "srimad_bhagavatam" | "general";
 
@@ -29,6 +25,8 @@ export interface Book {
   id: string;
   category: BookCategory;
   title: string;
+  code: string | null;
+  description: string | null;
   sort_order: number;
   active: boolean;
 }

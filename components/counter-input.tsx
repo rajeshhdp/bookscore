@@ -10,16 +10,23 @@ export function CounterInput({
   value,
   onChange,
   label,
+  hint,
   max = 9999,
 }: {
   value: number;
   onChange: (value: number) => void;
   label: string;
+  hint?: string | null;
   max?: number;
 }) {
   return (
     <div className="flex items-center justify-between gap-3 py-1">
-      <span className="min-w-0 flex-1 text-[15px] leading-snug">{label}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[15px] leading-snug">{label}</span>
+        {hint ? (
+          <span className="block text-xs text-muted-foreground">{hint}</span>
+        ) : null}
+      </span>
       <div className="flex items-center gap-1">
         <button
           type="button"

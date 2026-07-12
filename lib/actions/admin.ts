@@ -145,8 +145,10 @@ export async function deleteAnnouncement(id: string): Promise<AdminResult> {
 // Book catalog
 // ---------------------------------------------------------------------------
 const bookSchema = z.object({
-  category: z.enum(["bhagavad_gita", "srimad_bhagavatam", "krishna_books", "other"]),
+  category: z.enum(["book", "set", "magazine"]),
   title: z.string().trim().min(1, "Title is required").max(200),
+  code: z.string().trim().max(10).optional().default(""),
+  description: z.string().trim().max(200).optional().default(""),
   sortOrder: z.number().int().min(0).max(1000),
   active: z.boolean(),
 });
@@ -167,6 +169,8 @@ export async function saveBook(
   const row = {
     category: parsed.data.category,
     title: parsed.data.title,
+    code: parsed.data.code || null,
+    description: parsed.data.description || null,
     sort_order: parsed.data.sortOrder,
     active: parsed.data.active,
   };
@@ -247,7 +251,7 @@ export async function exportEntriesCsv(): Promise<CsvExportResult> {
   const { data: entries, error } = await auth.supabase
     .from("distribution_entries")
     .select(
-      "id, devotee_name, date, donation_amount, location_note, created_at, regions(name), entry_items(quantity, books(title, category))"
+      "id, devotee_name, date, donation_amount, location_note, created_at, regions(name), entry_items(quantity, books(title, code, category))"
     )
     .order("date", { ascending: false })
     .limit(5000);
@@ -262,6 +266,7 @@ export async function exportEntriesCsv(): Promise<CsvExportResult> {
     "Region",
     "Location",
     "Book",
+    "Code",
     "Category",
     "Quantity",
     "Donation",
@@ -274,7 +279,10 @@ export async function exportEntriesCsv(): Promise<CsvExportResult> {
     donation_amount: number;
     location_note: string | null;
     regions: { name: string } | null;
-    entry_items: { quantity: number; books: { title: string; category: string } | null }[];
+    entry_items: {
+      quantity: number;
+      books: { title: string; code: string | null; category: string } | null;
+    }[];
   };
 
   for (const entry of entries as unknown as ExportRow[]) {
@@ -286,7 +294,9 @@ export async function exportEntriesCsv(): Promise<CsvExportResult> {
     ];
     if (entry.entry_items.length === 0) {
       lines.push(
-        [...base, "", "", "0", entry.donation_amount].map(csvEscape).join(",")
+        [...base, "", "", "", "0", entry.donation_amount]
+          .map(csvEscape)
+          .join(",")
       );
       continue;
     }
@@ -295,6 +305,7 @@ export async function exportEntriesCsv(): Promise<CsvExportResult> {
         [
           ...base,
           item.books?.title ?? "",
+          item.books?.code ?? "",
           item.books?.category ?? "",
           item.quantity,
           // Donation only on the first row of the entry so sums stay correct.
