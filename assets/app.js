@@ -5,7 +5,7 @@ const CONFIG = {
   gid: "0",
   goal: 7500,
   currencySymbol: "$",
-  autoRefreshMs: 60000, // 1 minute
+  autoRefreshMs: 3600000, // 1 hour — keep this high to avoid Google rate-limiting the CSV export
 };
 
 const csvUrl = () =>
@@ -158,6 +158,8 @@ function render(donors) {
 }
 
 // ---- Data fetching ----------------------------------------------------------
+let lastGoodDonors = null;
+
 async function loadData() {
   els.refreshBtn.classList.add("spinning");
   try {
@@ -167,23 +169,41 @@ async function loadData() {
     const rows = parseCSV(text);
     const donors = extractDonors(rows);
 
-    if (donors.length === 0 && rows.length > 0) {
-      showStatus(
-        "Couldn't find donor data in the sheet. Make sure it has 'Name' and 'Amount' columns."
-      );
+    if (donors.length === 0) {
+      // Likely a rate-limited/empty response rather than a genuinely empty
+      // sheet. Keep showing the last good data instead of blanking to zero.
+      if (lastGoodDonors && lastGoodDonors.length > 0) {
+        showStatus(
+          "Couldn't refresh live data just now, showing the last known totals."
+        );
+      } else if (rows.length > 0) {
+        showStatus(
+          "Couldn't find donor data in the sheet. Make sure it has 'Name' and 'Amount' columns."
+        );
+        render(donors);
+      } else {
+        render(donors);
+      }
     } else {
       showStatus(null);
+      lastGoodDonors = donors;
+      render(donors);
     }
 
-    render(donors);
     els.lastUpdated.textContent = new Date().toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",
     });
   } catch (err) {
-    showStatus(
-      "Couldn't load live data from Google Sheets right now. Make sure the sheet is shared as \"Anyone with the link can view\", then try refreshing."
-    );
+    if (lastGoodDonors && lastGoodDonors.length > 0) {
+      showStatus(
+        "Couldn't refresh live data just now, showing the last known totals."
+      );
+    } else {
+      showStatus(
+        "Couldn't load live data from Google Sheets right now. Make sure the sheet is shared as \"Anyone with the link can view\", then try refreshing."
+      );
+    }
     console.error("Failed to load donation data:", err);
   } finally {
     els.refreshBtn.classList.remove("spinning");
