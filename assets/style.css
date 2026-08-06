@@ -185,9 +185,6 @@ main {
 .donors-section { margin-top: 36px; }
 
 .donors-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   margin-bottom: 14px;
 }
 
@@ -197,27 +194,6 @@ main {
   color: var(--gold-light);
   margin: 0;
 }
-
-.refresh-btn {
-  background: rgba(242, 193, 78, 0.12);
-  border: 1px solid var(--card-border);
-  color: var(--gold-light);
-  padding: 7px 14px;
-  border-radius: 999px;
-  font-size: 0.8rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: background 0.2s;
-}
-
-.refresh-btn:hover { background: rgba(242, 193, 78, 0.22); }
-
-.refresh-icon { display: inline-block; transition: transform 0.5s; }
-.refresh-btn.spinning .refresh-icon { animation: spin 0.7s linear; }
-
-@keyframes spin { to { transform: rotate(360deg); } }
 
 .status-message {
   background: rgba(90, 40, 10, 0.55);

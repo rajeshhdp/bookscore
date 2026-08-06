@@ -22,7 +22,6 @@ const els = {
   donorList: document.getElementById("donorList"),
   statusMessage: document.getElementById("statusMessage"),
   lastUpdated: document.getElementById("lastUpdated"),
-  refreshBtn: document.getElementById("refreshBtn"),
 };
 
 // ---- CSV parsing ----------------------------------------------------------
@@ -161,7 +160,6 @@ function render(donors) {
 let lastGoodDonors = null;
 
 async function loadData() {
-  els.refreshBtn.classList.add("spinning");
   try {
     const res = await fetch(csvUrl(), { cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
@@ -201,16 +199,12 @@ async function loadData() {
       );
     } else {
       showStatus(
-        "Couldn't load live data from Google Sheets right now. Make sure the sheet is shared as \"Anyone with the link can view\", then try refreshing."
+        "Couldn't load live data from Google Sheets right now. Make sure the sheet is shared as \"Anyone with the link can view\"."
       );
     }
     console.error("Failed to load donation data:", err);
-  } finally {
-    els.refreshBtn.classList.remove("spinning");
   }
 }
-
-els.refreshBtn.addEventListener("click", loadData);
 
 loadData();
 setInterval(loadData, CONFIG.autoRefreshMs);
