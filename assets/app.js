@@ -8,8 +8,13 @@ const CONFIG = {
   autoRefreshMs: 3600000, // 1 hour — keep this high to avoid Google rate-limiting the CSV export
 };
 
+// The gviz endpoint is Google's public data-embedding API and is more
+// reliable for anonymous cross-origin fetches than the plain /export
+// endpoint, which occasionally redirects or errors for no visible reason.
 const csvUrl = () =>
-  `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/export?format=csv&gid=${CONFIG.gid}&cachebust=${Date.now()}`;
+  `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/gviz/tq?tqx=out:csv&gid=${CONFIG.gid}&cachebust=${Date.now()}`;
+
+const CACHE_KEY = "jf2026-donor-cache";
 
 // ---- DOM refs -----------------------------------------------------------
 const els = {
@@ -156,35 +161,72 @@ function render(donors) {
   });
 }
 
+// ---- Local cache (survives across page loads/visitors on this device) -----
+function loadCachedDonors() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed.donors) || parsed.donors.length === 0) return null;
+    return parsed;
+  } catch (err) {
+    return null;
+  }
+}
+
+function saveCachedDonors(donors) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ donors, ts: Date.now() }));
+  } catch (err) {
+    // localStorage unavailable (private browsing etc.) — not fatal.
+  }
+}
+
 // ---- Data fetching ----------------------------------------------------------
 let lastGoodDonors = null;
 
+async function fetchDonorsOnce() {
+  const res = await fetch(csvUrl(), { cache: "no-store" });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const text = await res.text();
+  const rows = parseCSV(text);
+  const donors = extractDonors(rows);
+  return { donors, rows };
+}
+
+// Transient failures (network blips, an occasional bad response from
+// Google) are common enough that a single attempt isn't reliable. Retry a
+// couple of times with a short backoff before giving up for this cycle.
+async function fetchDonorsWithRetry(maxAttempts = 3) {
+  let lastErr = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const result = await fetchDonorsOnce();
+      if (result.donors.length > 0 || result.rows.length === 0) return result;
+      lastErr = new Error("Parsed 0 donors from a non-empty response");
+    } catch (err) {
+      lastErr = err;
+    }
+    if (attempt < maxAttempts) {
+      await new Promise((r) => setTimeout(r, attempt * 1500));
+    }
+  }
+  throw lastErr;
+}
+
 async function loadData() {
   try {
-    const res = await fetch(csvUrl(), { cache: "no-store" });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const text = await res.text();
-    const rows = parseCSV(text);
-    const donors = extractDonors(rows);
+    const { donors, rows } = await fetchDonorsWithRetry();
 
-    if (donors.length === 0) {
-      // Likely a rate-limited/empty response rather than a genuinely empty
-      // sheet. Keep showing the last good data instead of blanking to zero.
-      if (lastGoodDonors && lastGoodDonors.length > 0) {
-        showStatus(
-          "Couldn't refresh live data just now, showing the last known totals."
-        );
-      } else if (rows.length > 0) {
-        showStatus(
-          "Couldn't find donor data in the sheet. Make sure it has 'Name' and 'Amount' columns."
-        );
-        render(donors);
-      } else {
-        render(donors);
-      }
+    if (donors.length === 0 && rows.length > 0) {
+      showStatus(
+        "Couldn't find donor data in the sheet. Make sure it has 'Name' and 'Amount' columns."
+      );
+      render(donors);
     } else {
       showStatus(null);
       lastGoodDonors = donors;
+      saveCachedDonors(donors);
       render(donors);
     }
 
@@ -204,6 +246,17 @@ async function loadData() {
     }
     console.error("Failed to load donation data:", err);
   }
+}
+
+// Render any cached totals immediately so a slow/failed fetch never shows
+// $0 to a visitor who's seen real numbers before on this device.
+const cached = loadCachedDonors();
+if (cached) {
+  lastGoodDonors = cached.donors;
+  render(cached.donors);
+  els.lastUpdated.textContent =
+    new Date(cached.ts).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) +
+    " (cached)";
 }
 
 loadData();
