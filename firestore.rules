@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /rsvps/{id} {
+      // Anyone can submit a valid RSVP; only the logged-in admin can read/change.
+      allow create: if request.resource.data.keys().hasOnly(['name','adults','kids','createdAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80
+        && request.resource.data.adults is int && request.resource.data.adults >= 0 && request.resource.data.adults <= 50
+        && request.resource.data.kids is int && request.resource.data.kids >= 0 && request.resource.data.kids <= 50;
+      allow read, update, delete: if request.auth != null;
+    }
+  }
+}

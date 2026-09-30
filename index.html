@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RSVP</title><link rel="stylesheet" href="style.css"></head>
+<body><div class="card">
+<h1 id="title"></h1><p class="sub" id="details"></p>
+<form id="f">
+<label for="name">Your name</label><input id="name" required maxlength="80" autocomplete="name">
+<label for="adults">Number of adults</label><input id="adults" type="number" min="0" max="50" value="1" required>
+<label for="kids">Number of kids</label><input id="kids" type="number" min="0" max="50" value="0" required>
+<button id="b">RSVP</button>
+<div class="msg" id="m"></div>
+</form></div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="config.js"></script>
+<script>
+document.getElementById('title').textContent=EVENT_TITLE;
+document.getElementById('details').textContent=EVENT_DETAILS;
+firebase.initializeApp(FIREBASE_CONFIG);
+const db=firebase.firestore(), f=document.getElementById('f'), m=document.getElementById('m'), b=document.getElementById('b');
+f.addEventListener('submit',async e=>{
+  e.preventDefault(); b.disabled=true; m.className='msg'; m.textContent='';
+  try{
+    await db.collection('rsvps').add({
+      name:f.name.value.trim(), adults:parseInt(f.adults.value,10), kids:parseInt(f.kids.value,10),
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    m.className='msg ok'; m.textContent='Thank you! Your RSVP is recorded.'; f.reset(); f.adults.value=1; f.kids.value=0;
+  }catch(err){ m.className='msg err'; m.textContent='Could not submit. Please try again.'; console.error(err); }
+  b.disabled=false;
+});
+</script></body></html>

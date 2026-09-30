@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RSVP Admin</title><link rel="stylesheet" href="style.css"><meta name="robots" content="noindex"></head>
+<body><div class="card">
+<h1>RSVP Admin</h1>
+<form id="login">
+<label for="email">Email</label><input id="email" type="email" required autocomplete="username">
+<label for="pw">Password</label><input id="pw" type="password" required autocomplete="current-password">
+<button>Log in</button><div class="msg err" id="e"></div>
+</form>
+<div id="dash" hidden>
+<div class="totals">
+<div><b id="tg">0</b><span>Responses</span></div>
+<div><b id="ta">0</b><span>Adults</span></div>
+<div><b id="tk">0</b><span>Kids</span></div>
+<div><b id="tt">0</b><span>Total people</span></div>
+</div>
+<table><thead><tr><th>Name</th><th class="n">Adults</th><th class="n">Kids</th></tr></thead><tbody id="rows"></tbody></table>
+<button class="link" id="out">Log out</button>
+</div></div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="config.js"></script>
+<script>
+firebase.initializeApp(FIREBASE_CONFIG);
+const auth=firebase.auth(), db=firebase.firestore(), $=id=>document.getElementById(id);
+let unsub=null;
+$('login').addEventListener('submit',async e=>{
+  e.preventDefault(); $('e').textContent='';
+  try{await auth.signInWithEmailAndPassword($('email').value,$('pw').value);}
+  catch(err){$('e').textContent='Login failed.';}
+});
+$('out').onclick=()=>auth.signOut();
+auth.onAuthStateChanged(u=>{
+  $('login').hidden=!!u; $('dash').hidden=!u;
+  if(unsub){unsub();unsub=null;}
+  if(!u) return;
+  unsub=db.collection('rsvps').orderBy('createdAt','desc').onSnapshot(s=>{
+    let a=0,k=0,rows='';
+    s.forEach(d=>{const r=d.data();a+=r.adults;k+=r.kids;
+      const tr=document.createElement('tr');
+      [r.name,r.adults,r.kids].forEach((v,i)=>{const td=document.createElement('td');td.textContent=v;if(i)td.className='n';tr.appendChild(td);});
+      rows+=tr.outerHTML;});
+    $('rows').innerHTML=rows; $('tg').textContent=s.size; $('ta').textContent=a; $('tk').textContent=k; $('tt').textContent=a+k;
+  },err=>{$('e').textContent='Not authorized.';auth.signOut();});
+});
+</script></body></html>
